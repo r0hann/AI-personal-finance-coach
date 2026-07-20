@@ -1,0 +1,68 @@
+# ── Secrets & credentials ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example          # keep the example template
+
+# ── Bank data & user uploads (never commit financial data) ───────────────────
+*.csv
+*.ofx
+*.qfx
+data/
+uploads/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.eggs/
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / frontend ───────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+.npm
+
+# ── Graphify (generated knowledge graph — reproducible with /graphify) ───────
+# Ignore generated files but keep the human-readable report
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
+
+# ── Claude Code local settings (machine-specific permissions) ────────────────
+.claude/settings.local.json
+
+# ── OS & editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Docker volumes (if you ever mount local dirs) ────────────────────────────
+postgres-data/
