@@ -1,11 +1,11 @@
-version: '3.9'
-
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     env_file: .env
+    volumes:
+      - ./shared_memory:/app/shared_memory
     restart: unless-stopped
 
   frontend:

@@ -1,13 +1,9 @@
-"""AI categorization using Claude Haiku with prompt caching."""
+"""Transaction categorization — Gemini first, Claude fallback, Ollama last resort."""
 import json
 import re
 from typing import List
-import anthropic
-from config import settings
+from services.ai_provider import complete, CATEGORIZATION
 
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-# Keyword fallback rules (avoids burning tokens on obvious cases)
 _KEYWORD_RULES = {
     "uber": "Transport", "lyft": "Transport", "metro": "Transport",
     "subway": "Transport", "parking": "Transport",
@@ -50,7 +46,6 @@ def categorize_batch(descriptions: List[str]) -> dict[str, str]:
     """Categorize up to 50 transaction descriptions. Returns {description: category}."""
     result: dict[str, str] = {}
 
-    # Apply keyword rules first
     to_ai: List[str] = []
     for desc in descriptions:
         cat = _keyword_category(desc)
@@ -62,29 +57,17 @@ def categorize_batch(descriptions: List[str]) -> dict[str, str]:
     if not to_ai:
         return result
 
-    # Batch AI categorization with prompt caching on the system prompt
-    response = _client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    text, _ = complete(
+        system=_SYSTEM_PROMPT,
+        user=json.dumps(to_ai),
         max_tokens=1024,
-        system=[{
-            "type": "text",
-            "text": _SYSTEM_PROMPT,
-            "cache_control": {"type": "ephemeral"},
-        }],
-        messages=[{
-            "role": "user",
-            "content": json.dumps(to_ai),
-        }],
+        priority=CATEGORIZATION,
     )
 
-    text = response.content[0].text.strip()
-    # Extract JSON even if there's surrounding text
     match = re.search(r'\{.*\}', text, re.DOTALL)
     if match:
-        ai_result = json.loads(match.group())
-        result.update(ai_result)
+        result.update(json.loads(match.group()))
 
-    # Fallback for any missing
     for desc in to_ai:
         if desc not in result:
             result[desc] = "Other"
@@ -95,8 +78,6 @@ def categorize_batch(descriptions: List[str]) -> dict[str, str]:
 def categorize_transactions_bulk(descriptions: List[str]) -> dict[str, str]:
     """Categorize any number of descriptions in batches of 50."""
     all_results: dict[str, str] = {}
-    batch_size = 50
-    for i in range(0, len(descriptions), batch_size):
-        batch = descriptions[i:i + batch_size]
-        all_results.update(categorize_batch(batch))
+    for i in range(0, len(descriptions), 50):
+        all_results.update(categorize_batch(descriptions[i:i + 50]))
     return all_results
