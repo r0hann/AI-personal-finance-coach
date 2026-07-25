@@ -37,6 +37,14 @@ create table budgets (
   unique(category_id, month_year)
 );
 
+-- Learned category mappings (description → category, grows from AI calls and manual corrections)
+create table learned_categories (
+  description text primary key,
+  category_name text not null,
+  source text not null default 'ai',  -- 'ai' | 'user'
+  updated_at timestamptz not null default now()
+);
+
 -- Insights cache table (avoid re-generating AI insights on every page load)
 create table insights_cache (
   id uuid primary key default uuid_generate_v4(),

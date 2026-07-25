@@ -1,11 +1,22 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from db.supabase import get_client
 from services.csv_parser import parse_csv
-from services.categorizer import categorize_transactions_bulk
+from services.categorizer import categorize_transactions_bulk, _persist_learned
+from services.error_logger import log_error
 from models.transaction import TransactionUpdate
+import math
 import uuid
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+def _clean(obj):
+    """Recursively replace NaN/Inf floats with None so the payload is JSON-safe."""
+    if isinstance(obj, dict):
+        return {k: _clean(v) for k, v in obj.items()}
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    return obj
 
 
 @router.post("/import/csv")
@@ -17,22 +28,19 @@ async def import_csv(file: UploadFile = File(...)):
     try:
         transactions = parse_csv(content)
     except ValueError as e:
+        log_error("csv_import", e, {"filename": file.filename})
         raise HTTPException(400, str(e))
 
     if not transactions:
         raise HTTPException(400, "No valid transactions found in CSV")
 
-    # Categorize all descriptions
     descriptions = [t.description for t in transactions]
     categories_map = categorize_transactions_bulk(descriptions)
 
     db = get_client()
-
-    # Fetch category name→id mapping
     cats = db.table("categories").select("id, name").execute().data
     cat_id_map = {c["name"]: c["id"] for c in cats}
 
-    # Build rows for bulk insert
     rows = []
     for t in transactions:
         cat_name = categories_map.get(t.description, "Other")
@@ -42,10 +50,15 @@ async def import_csv(file: UploadFile = File(...)):
             "amount": t.amount,
             "merchant": t.merchant,
             "category_id": cat_id_map.get(cat_name),
-            "raw_csv_row": t.raw_csv_row,
+            "raw_csv_row": _clean(t.raw_csv_row),
+            "external_ref": t.external_ref,
         })
 
-    db.table("transactions").insert(rows).execute()
+    try:
+        db.table("transactions").upsert(rows, on_conflict="external_ref", ignore_duplicates=True).execute()
+    except Exception as e:
+        log_error("csv_import_db", e, {"filename": file.filename, "row_count": len(rows)})
+        raise HTTPException(500, "Failed to save transactions to database")
 
     return {"imported": len(rows), "message": f"Successfully imported {len(rows)} transactions"}
 
@@ -75,6 +88,21 @@ def update_category(transaction_id: uuid.UUID, body: TransactionUpdate):
     db.table("transactions").update(
         {"category_id": str(body.category_id)}
     ).eq("id", str(transaction_id)).execute()
+
+    # Persist the user correction so future imports skip the AI call for this description
+    tx = (
+        db.table("transactions")
+        .select("description, categories(name)")
+        .eq("id", str(transaction_id))
+        .execute()
+        .data
+    )
+    if tx:
+        desc = tx[0]["description"]
+        cat_name = (tx[0].get("categories") or {}).get("name")
+        if cat_name:
+            _persist_learned({desc: cat_name}, source="user")
+
     return {"success": True}
 
 

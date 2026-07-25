@@ -26,3 +26,7 @@ export const listBudgets = (monthYear?: string) =>
   api.get('/budget/', { params: { month_year: monthYear } })
 export const createBudget = (body: { category_id: string; monthly_limit: number; month_year: string }) =>
   api.post('/budget/', body)
+
+// Error Logs
+export const listErrorLogs = (limit = 50) => api.get('/error-logs/', { params: { limit } })
+export const clearErrorLogs = () => api.delete('/error-logs/')

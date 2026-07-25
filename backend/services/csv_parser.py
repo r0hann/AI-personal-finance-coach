@@ -17,6 +17,7 @@ _DESC_COLS = {
     "merchant name",
 }
 _AMOUNT_COLS = {"amount", "debit", "credit", "transaction amount"}
+_REF_COLS = {"reference", "ref", "transaction id", "txn id", "transaction ref"}
 
 
 def _find_col(columns: list[str], candidates: set[str]) -> str | None:
@@ -34,6 +35,7 @@ def parse_csv(file_bytes: bytes) -> List[Transaction]:
     date_col = _find_col(df.columns.tolist(), _DATE_COLS)
     desc_col = _find_col(df.columns.tolist(), _DESC_COLS)
     amount_col = _find_col(df.columns.tolist(), _AMOUNT_COLS)
+    ref_col = _find_col(df.columns.tolist(), _REF_COLS)
 
     if not date_col or not desc_col or not amount_col:
         missing = []
@@ -51,7 +53,7 @@ def parse_csv(file_bytes: bytes) -> List[Transaction]:
     transactions: List[Transaction] = []
     for _, row in df.iterrows():
         try:
-            parsed_date = pd.to_datetime(row[date_col]).date()
+            parsed_date = pd.to_datetime(row[date_col], dayfirst=True).date()
             amount = float(
                 str(row[amount_col]).replace(",", "").replace("$", "").strip()
             )
@@ -59,12 +61,14 @@ def parse_csv(file_bytes: bytes) -> List[Transaction]:
             if not desc or pd.isna(row[desc_col]):
                 continue
 
+            ref = str(row[ref_col]).strip() if ref_col and not pd.isna(row[ref_col]) else None
             transactions.append(
                 Transaction(
                     date=parsed_date,
                     description=desc,
                     amount=amount,
                     raw_csv_row=row.to_dict(),
+                    external_ref=ref,
                 )
             )
         except (ValueError, TypeError):

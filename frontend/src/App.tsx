@@ -4,6 +4,7 @@ import Transactions from './pages/Transactions'
 import Insights from './pages/Insights'
 import Chat from './pages/Chat'
 import Budget from './pages/Budget'
+import { ErrorLogs } from './pages/ErrorLogs'
 
 const NAV = [
   { to: '/', label: '📊 Dashboard' },
@@ -11,6 +12,7 @@ const NAV = [
   { to: '/insights', label: '💡 Insights' },
   { to: '/chat', label: '💬 Ask AI' },
   { to: '/budget', label: '🎯 Budget' },
+  { to: '/error-logs', label: '🔴 Errors' },
 ]
 
 export default function App() {
@@ -39,6 +41,7 @@ export default function App() {
             <Route path="/insights" element={<Insights />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/budget" element={<Budget />} />
+            <Route path="/error-logs" element={<ErrorLogs />} />
           </Routes>
         </main>
       </div>
