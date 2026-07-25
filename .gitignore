@@ -49,6 +49,7 @@ graphify-out/*
 
 # ── Claude Code local settings (machine-specific permissions) ────────────────
 .claude/settings.local.json
+shared_memory/
 
 # ── OS & editor ──────────────────────────────────────────────────────────────
 .DS_Store
