@@ -2,28 +2,32 @@
 Unified AI provider with automatic fallback.
 
 Priority chains:
-  categorization : gemini → claude → ollama
-  insights       : claude → gemini → ollama
-  forecast       : claude → gemini → ollama
-  chat (stream)  : gemini → claude → ollama
+  categorization : gemini → github → ollama
+  insights       : github → gemini → ollama
+  forecast       : github → gemini → ollama
+  chat (stream)  : gemini → github → ollama
 """
 import json
 import logging
 import requests
-import anthropic
+from openai import OpenAI
 import google.generativeai as genai
 from config import settings
+from services.error_logger import log_error
 
 log = logging.getLogger(__name__)
 
 # ── Priority chains ────────────────────────────────────────────────────────
-CATEGORIZATION = ["gemini", "claude", "ollama"]
-INSIGHTS       = ["claude", "gemini", "ollama"]
-FORECAST       = ["claude", "gemini", "ollama"]
-CHAT           = ["gemini", "claude", "ollama"]
+CATEGORIZATION = ["gemini", "github", "ollama"]
+INSIGHTS       = ["github", "gemini", "ollama"]
+FORECAST       = ["github", "gemini", "ollama"]
+CHAT           = ["gemini", "github", "ollama"]
 
 # ── Clients ────────────────────────────────────────────────────────────────
-_claude = anthropic.Anthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else None
+_github = OpenAI(
+    base_url="https://models.inference.ai.azure.com",
+    api_key=settings.github_token,
+) if settings.github_token else None
 if settings.google_api_key:
     genai.configure(api_key=settings.google_api_key)
 
@@ -34,22 +38,23 @@ class ProviderUnavailable(Exception):
 
 # ── Non-streaming completions ──────────────────────────────────────────────
 
-def _complete_claude(system: str, user: str, max_tokens: int) -> str:
-    if not _claude:
-        raise ProviderUnavailable("claude: no API key configured")
+def _complete_github(system: str, user: str, max_tokens: int) -> str:
+    if not _github:
+        raise ProviderUnavailable("github: no GITHUB_TOKEN configured")
     try:
-        resp = _claude.messages.create(
-            model="claude-haiku-4-5-20251001",
+        resp = _github.chat.completions.create(
+            model=settings.github_model,
             max_tokens=max_tokens,
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": user}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
         )
-        return resp.content[0].text
-    except anthropic.RateLimitError as e:
-        raise ProviderUnavailable(f"claude: rate limited") from e
-    except anthropic.APIStatusError as e:
-        if e.status_code in (429, 529):
-            raise ProviderUnavailable(f"claude: quota exceeded") from e
+        return resp.choices[0].message.content
+    except Exception as e:
+        msg = str(e).lower()
+        if "429" in msg or "rate" in msg or "quota" in msg:
+            raise ProviderUnavailable(f"github: rate limited") from e
         raise
 
 
@@ -58,7 +63,7 @@ def _complete_gemini(system: str, user: str, max_tokens: int) -> str:
         raise ProviderUnavailable("gemini: no API key configured")
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.0-flash",
             system_instruction=system,
         )
         resp = model.generate_content(
@@ -97,7 +102,7 @@ def _complete_ollama(system: str, user: str, max_tokens: int) -> str:
 
 
 _COMPLETE = {
-    "claude": _complete_claude,
+    "github": _complete_github,
     "gemini": _complete_gemini,
     "ollama": _complete_ollama,
 }
@@ -118,6 +123,7 @@ def complete(system: str, user: str, max_tokens: int, priority: list[str]) -> tu
             return text, provider
         except ProviderUnavailable as e:
             log.warning("Provider %s unavailable: %s", provider, e)
+            log_error("ai_provider", e, {"provider": provider, "chain": priority})
             errors.append(str(e))
     raise RuntimeError(f"All AI providers failed: {'; '.join(errors)}")
 
@@ -125,7 +131,7 @@ def complete(system: str, user: str, max_tokens: int, priority: list[str]) -> tu
 # ── Streaming completions ──────────────────────────────────────────────────
 
 def _stream_gemini(system: str, user: str, history: list[dict]):
-    model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=system)
+    model = genai.GenerativeModel(model_name="gemini-2.0-flash", system_instruction=system)
     chat = model.start_chat(history=history)
     try:
         response = chat.send_message(user, stream=True)
@@ -139,27 +145,30 @@ def _stream_gemini(system: str, user: str, history: list[dict]):
         raise
 
 
-def _stream_claude(system: str, user: str, history: list[dict]):
-    if not _claude:
-        raise ProviderUnavailable("claude: no API key configured")
-    # Convert Gemini-format history to Claude format
-    messages = []
+def _stream_github(system: str, user: str, history: list[dict]):
+    if not _github:
+        raise ProviderUnavailable("github: no GITHUB_TOKEN configured")
+    messages = [{"role": "system", "content": system}]
     for msg in history:
         role = "assistant" if msg["role"] == "model" else "user"
         text = msg["parts"][0]["text"] if "parts" in msg else msg.get("content", "")
         messages.append({"role": role, "content": text})
     messages.append({"role": "user", "content": user})
     try:
-        with _claude.messages.stream(
-            model="claude-haiku-4-5-20251001",
+        with _github.chat.completions.stream(
+            model=settings.github_model,
             max_tokens=1024,
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                yield text
-    except anthropic.RateLimitError as e:
-        raise ProviderUnavailable("claude: rate limited") from e
+        ) as s:
+            for chunk in s:
+                text = chunk.choices[0].delta.content if chunk.choices else None
+                if text:
+                    yield text
+    except Exception as e:
+        msg = str(e).lower()
+        if "429" in msg or "rate" in msg or "quota" in msg:
+            raise ProviderUnavailable("github: rate limited") from e
+        raise
 
 
 def _stream_ollama(system: str, user: str, history: list[dict]):
@@ -189,7 +198,7 @@ def _stream_ollama(system: str, user: str, history: list[dict]):
 
 _STREAM = {
     "gemini": _stream_gemini,
-    "claude": _stream_claude,
+    "github": _stream_github,
     "ollama": _stream_ollama,
 }
 
