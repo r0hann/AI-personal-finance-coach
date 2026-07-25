@@ -4,6 +4,34 @@ A full-stack personal finance app that ingests bank CSV exports, auto-categorize
 
 ---
 
+## What is this project?
+
+**AI Personal Finance Coach** is a self-hosted personal finance tool built for people who want to understand and improve their spending habits using AI — without sharing their financial data with a third-party service.
+
+You export a CSV from your bank (most banks support this), upload it to the app, and within seconds your transactions are automatically categorized, analyzed, and visualized. From there you can:
+
+- See exactly where your money is going each month with category breakdowns and charts
+- Get AI-generated insights that highlight spending patterns, anomalies, and savings opportunities — compared against your previous month
+- Set monthly budget limits per category and receive forecasts on whether you're on track
+- Chat with an AI financial coach that knows your actual spending data and gives personalized, actionable advice
+
+### What problem does it solve?
+
+Most people have a rough idea of their finances but lack the visibility to act on it. Manually reviewing bank statements is tedious, and generic budgeting apps don't give advice grounded in your real numbers. This project bridges that gap by combining:
+
+- **Automated data ingestion** — upload any bank's CSV, no manual entry
+- **AI categorization** — transactions are sorted into categories automatically, with a learning layer that improves over time (learned mappings are cached so the AI is called less and less as you use the app)
+- **Conversational coaching** — ask plain-English questions like "where am I overspending?" or "how do I save $200 this month?" and get answers based on your actual data
+- **Privacy-first** — runs entirely on your own infrastructure; your financial data never leaves your Supabase database
+
+### Who is it for?
+
+- Individuals who want deeper financial visibility than a spreadsheet but more control than a SaaS app
+- Developers learning how to build LLM-powered applications with real data pipelines
+- Anyone curious about applying AI to personal finance without a recurring subscription
+
+---
+
 ## Table of Contents
 
 - [Features](#features)
