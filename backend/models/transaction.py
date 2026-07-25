@@ -12,6 +12,7 @@ class Transaction(BaseModel):
     merchant: Optional[str] = None
     category_id: Optional[uuid.UUID] = None
     raw_csv_row: Optional[dict] = None
+    external_ref: Optional[str] = None
 
 
 class TransactionUpdate(BaseModel):
