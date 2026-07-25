@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { importCSV, listTransactions } from '../api'
 
+const maskAccountNumber = (text: string): string =>
+  text.replace(/(\d{2}-\d{4}-)(\d+)(-\d{2,3})/g, (_, prefix, account, suffix) =>
+    prefix + '*'.repeat(account.length) + suffix
+  )
+
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -63,7 +68,7 @@ export default function Transactions() {
             ) : transactions.map((t: any) => (
               <tr key={t.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-gray-500">{t.date}</td>
-                <td className="px-4 py-3 max-w-xs truncate">{t.description}</td>
+                <td className="px-4 py-3 max-w-xs truncate">{maskAccountNumber(t.description)}</td>
                 <td className="px-4 py-3">
                   {t.categories ? (
                     <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full">
