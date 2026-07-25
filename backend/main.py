@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import transactions, insights, chat, budget
+from routers import transactions, insights, chat, budget, error_logs
 
 app = FastAPI(title="AI Personal Finance Coach", version="1.0.0")
 
@@ -16,6 +16,7 @@ app.include_router(transactions.router)
 app.include_router(insights.router)
 app.include_router(chat.router)
 app.include_router(budget.router)
+app.include_router(error_logs.router)
 
 
 @app.get("/health")
